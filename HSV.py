@@ -6,7 +6,7 @@ import imutils
 import shapedetector
 
 
-fn = 'timg_26.jpg'
+fn = './PIC/timg_26.jpg'
 image = cv2.imread(fn)
 HSV = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 std_shell = np.load('./std_shell.npy')

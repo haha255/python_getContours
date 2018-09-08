@@ -28,9 +28,9 @@ class GetShellSize:
         grad = self.picGrad(img)
         h, w = img.shape[:2]
         canny = cv2.Canny(grad, 50, 150, 3)  # 这里取值不太好
-        row = np.zeros(h, dtype=np.uint8)
+        row = np.zeros(w, dtype=np.uint8)
         canny = np.row_stack((row, canny, row))
-        col = np.zeros(w + 2, dtype=np.uint8)
+        col = np.zeros(h + 2, dtype=np.uint8)
         canny = np.column_stack((col, canny, col))
         return canny
 
@@ -121,9 +121,9 @@ class GetShellSize:
         cnts = cv2.findContours(mb, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cnts = cnts[0] if imutils.is_cv2() else cnts[1]
         cnts = sorted(cnts, key=cv2.contourArea, reverse=True)  # 按照面积由大到小排序
-        count = 0
+        count = []
         for c in cnts:
-            similar = cv2.matchShapes(std_shell, c, cv2.CONTOURS_MATCH_I1, 0.0)
+            similar = 1 - cv2.matchShapes(std_shell, c, cv2.CONTOURS_MATCH_I1, 0.0)
             if similar <= sim:  # 相似度不高
                 continue
             peri = cv2.arcLength(c, True)  # 计算周长
@@ -136,70 +136,103 @@ class GetShellSize:
                 continue
             p1 = []
             for i in range(2):
-                s, e, f, d = defects[i, 0]
+                _, _, f, _ = defects[i, 0]
                 # start = tuple(approx[s][0])
                 # end = tuple(approx[e][0])
                 far = tuple(approx[f][0])
                 p1.append(approx[f][0])
-                cv2.circle(image, far, 3, (255, 0, 255), -1)  # 缺陷点标注
-            y = int(p1[1][1] - (p1[1][1] - p1[0][1]) / 2)
-            x = int(p1[1][0] - (p1[1][0] - p1[0][0]) / 2)
-            cv2.circle(image, (x, y), 3, (255, 255, 0), -1)  # 缺陷点的中点
-
-
-
+                cv2.circle(img, far, 2, (0, 252, 124), -1)  # 缺陷点标注，草地绿
+            x, y = int(p1[1][0] - (p1[1][0] - p1[0][0]) / 2), int(p1[1][1] - (p1[1][1] - p1[0][1]) / 2)  # 腰点中点的坐标
+            cv2.circle(img, (x, y), 2, (0, 252, 124), -1)  # 缺陷点的中点，草地绿
             cv2.drawContours(img, [c], -1, (0, 0, 255), 2)  # 绘制轮廓线
-            M = cv2.moments(c)  # 计算轮廓的矩
-            # Hu_M = cv2.HuMoments(M)  # 计算7个不变矩
+            M = cv2.moments(c)  # 计算轮廓的矩，Hu_M = cv2.HuMoments(M)  # 计算7个不变矩
             if M['m00'] < 1000:
-                break
-            cx, cy = int(M['m10'] / M['m00']), int(M['m01'] / M['m00'])
-            cv2.circle(image, (cx, cy), 3, (255, 0, 0), -1)  # 质心
-
-
-
-            # cv2.line(image, (x, y), (cx, cy), (128, 128, 0), 2)
-            '''绘制最小外接圆'''
-            circle = cv2.minEnclosingCircle(c)
-            circle_center = (int(circle[0][0]), int(circle[0][1]))  # 圆心
+                break  # 面积小于1000个点的抛弃掉
+            cx, cy = int(M['m10'] / M['m00']), int(M['m01'] / M['m00'])  # 质心的坐标位置
+            cv2.circle(img, (cx, cy), 2, (255, 0, 0), -1)  # 画质心，纯蓝色
+            circle = cv2.minEnclosingCircle(c)  # 查找最小外接圆，因为如果是扇贝，圆心和质心差距应该不大，可以忽略，找外接圆的主要目的是确定画直线段的长度
             circle_r = int(circle[1])  # 半径
-            # cv2.circle(image, circle_center, circle_r, (200, 0, 0), 2)
-            # cv2.circle(image, circle_center, 4, (0, 0, 200), -1)
-            line_2p = getcrosspoint(c, (cx, cy), (x, y), circle_r, 2)  # 返回A,B,C,D四个点
-            rect_pa = from_points_get_rect(line_2p)
-            # for i in range(3):
-            #     cv2.line(image, rect_pa[i], rect_pa[i + 1], (0, 255, 255), 2)
-            # cv2.line(image, rect_pa[0], rect_pa[3], (0, 255, 255), 2)
-            # cv2.circle(image, rect_pa[0], 3, (0, 255, 255), -1)  # 外矩形的A点
-            # cv2.putText(image, ('RA'), rect_pa[0], cv2.FONT_HERSHEY_TRIPLEX, 1, (0, 255, 0))
-            # cv2.circle(image, rect_pa[1], 3, (0, 255, 255), -1)  # 外矩形的A点
-            # cv2.putText(image, ('RB'), rect_pa[1], cv2.FONT_HERSHEY_TRIPLEX, 1, (0, 255, 0))
-            # cv2.circle(image, rect_pa[2], 3, (0, 255, 255), -1)  # 外矩形的A点
-            # cv2.putText(image, ('RC'), rect_pa[2], cv2.FONT_HERSHEY_TRIPLEX, 1, (0, 255, 0))
-            # cv2.circle(image, rect_pa[3], 3, (0, 255, 255), -1)  # 外矩形的A点
-            # line_p = getlinepoint((cx, cy), (x, y), circle_r, circle_r)
-            # cv2.line(image, line_p[0], line_p[1], (100, 100, 50), 3)
-            # dis_c = cv2.pointPolygonTest(c, line_p[0], 1)
-            # dis_d = cv2.pointPolygonTest(c, line_p[1], 1)
-            # line_p = getlinepoint((cx, cy), (x, y), circle_r + dis_c, circle_r + dis_d)
-            # print(line_2p)
-            cv2.putText(image, ('A'), line_2p[0], cv2.FONT_HERSHEY_TRIPLEX, 1, (0, 255, 0))
-            cv2.putText(image, ('B'), line_2p[1], cv2.FONT_HERSHEY_TRIPLEX, 1, (0, 255, 0))
-            cv2.putText(image, ('C'), line_2p[2], cv2.FONT_HERSHEY_TRIPLEX, 1, (0, 255, 0))
-            cv2.line(image, line_2p[0], line_2p[1], (0, 255, 0), 1)
-            cv2.line(image, line_2p[2], line_2p[3], (0, 255, 0), 1)
-            '''写字'''
-            txt = 'H:' + int(
-                math.sqrt((line_2p[0][0] - line_2p[1][0]) ** 2 + (line_2p[1][1] - line_2p[0][1]) ** 2)).__str__() \
-                  + 'W:' + int(
-                math.sqrt((line_2p[2][0] - line_2p[3][0]) ** 2 + (line_2p[2][1] - line_2p[3][1]) ** 2)).__str__()
-            cv2.putText(image, txt, (cx, cy), cv2.FONT_HERSHEY_TRIPLEX, 1, (0, 255, 0))
-            rr = cv2.matchShapes(std_shell, c, cv2.CONTOURS_MATCH_I1, 0.0)
-            cv2.putText(image, ('%.2f' % rr), (x, y), cv2.FONT_HERSHEY_TRIPLEX, 1, (0, 255, 0))
+            line_2p = self.getcrosspoint(c, (cx, cy), (x, y), circle_r, 2)  # 返回A,B,C,D四个点
+            cv2.line(img, line_2p[0], line_2p[1], (0xff, 0x33, 0x99), 1)  # 颜色 浅紫色
+            cv2.circle(img, line_2p[0], 2, (0xff, 0x33, 0x99), -1)  # 2个端点
+            cv2.circle(img, line_2p[1], 2, (0xff, 0x33, 0x99), -1)
+            cv2.line(img, line_2p[2], line_2p[3], (0xff, 0x33, 0xcc), 1)
+            cv2.circle(img, line_2p[2], 2, (0xff, 0x33, 0x99), -1)  # 2个端点
+            cv2.circle(img, line_2p[3], 2, (0xff, 0x33, 0x99), -1)
+            shell_h, shell_w = self.linelength(line_2p[0], line_2p[1]), self.linelength(line_2p[2], line_2p[3])
+            txt = 'H:' + str(shell_h) + 'W:' + str(shell_w)
+            cv2.putText(img, txt, (cx, cy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255, 0))
+            cv2.putText(img, 'S:{:.1%}'.format(similar), (cx, cy + 20), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255, 0))
+            count.append([shell_h, shell_w, similar, M['m00']])  # 检测到这里，可以认为找到了扇贝，计数器可以加一了
+            if len(count) >= maxnum:
+                break
+        return count, img
+
+    def getcrosspoint(self, c, p_a, p_b, circle_c, iteration=1):
+        '''根据给定的a,b两点和最小外接圆半径，求得和C形状相接的2点坐标，最后一个参数是迭代次数，一般不用超过3次。'''
+        dis_s, dis_t = [circle_c for _ in range(4)], [0, 0, 0, 0]
+        line_ret = self.getlinepoint(p_a, p_b, dis_s[0], dis_s[1], dis_s[2], dis_s[3])  # 返回cd两点
+        for _ in range(iteration):
+            for i in range(4):
+                dis_t[i] = int(cv2.pointPolygonTest(c, line_ret[i], 1))  # 依次计算质点轴方向上点下点、垂直轴方向左侧右侧距离
+                dis_s[i] = dis_s[i] + dis_t[i]
+            line_ret = self.getlinepoint(p_a, p_b, dis_s[0], dis_s[1], dis_s[2], dis_s[3])
+        return line_ret
+
+    def getlinepoint(self, p_a, p_b, dis_c, dis_d, dis_e, dis_f):
+        '''pa,pb点和长度R，返回c点和反方向d点的坐标 a位质心点'''
+        if p_a[0] == p_b[0]:  # 斜率无穷，为垂直线
+            p_c = (p_a[0], p_a[1] + dis_c)
+            p_d = (p_a[0], p_a[1] - dis_d)
+            p_e = (p_a[0] - dis_e, p_a[1])
+            p_f = (p_a[0] + dis_f, p_a[1])
+            return p_c, p_d, p_e, p_f
+        elif p_a[1] == p_b[1]:  # 水平线
+            p_c = (p_a[0] + dis_c, p_a[1])
+            p_d = (p_a[0] - dis_d, p_a[1])
+            p_e = (p_a[0], p_a[1] - dis_e)
+            p_f = (p_a[0], p_a[1] + dis_f)
+            return p_c, p_d, p_e, p_f
+        else:
+            radian = math.atan2(p_b[1] - p_a[1], p_a[0] - p_b[0])
+            radian_90 = math.atan2(p_a[0] - p_b[0], p_a[1] - p_b[1])
+            p_c = (int(p_a[0] + math.cos(radian) * dis_c), int(p_a[1] - math.sin(radian) * dis_c))
+            p_d = (int(p_a[0] - math.cos(radian) * dis_d), int(p_a[1] + math.sin(radian) * dis_d))
+            p_e = (int(p_a[0] + math.cos(radian_90) * dis_e), int(p_a[1] - math.sin(radian_90) * dis_e))
+            p_f = (int(p_a[0] - math.cos(radian_90) * dis_f), int(p_a[1] + math.sin(radian_90) * dis_f))
+            return p_c, p_d, p_e, p_f
 
     def test(self):
         print(self.width, self.height)
 
 if __name__ == '__main__':
-    shells = GetShellSize('s1.jpg')
-    shells.test()
+    shells = GetShellSize()
+    fn = 'timg_27_g.jpg'
+    img = cv2.imread('./pic/' + fn)
+    ret, approx, box = shells.detect_rect(img)
+    if not ret:
+        print('没有检测到白色垫纸！')
+    else:
+        dst = shells.transform(img, approx, box)
+        sd, final = shells.detect_shell(dst)
+        if len(sd) <= 0:
+            print('没有检测到扇贝！')
+            exit(0)
+        else:
+            xx, yy = 10, 20
+            hh, ww = final.shape[:2]
+            if hh > ww:
+                rate = 297 / hh * 0.5 + 210 / ww * 0.5
+            else:
+                rate = 297 / ww * 0.5 + 210 / hh * 0.5
+            rate1 = 297 * 210 / (hh * ww)
+            for index, value in enumerate(sd):
+                text = ': H={0:.1f}mm, W={1:.1f}mm, S={2:.1%}, Area={3:.1f}cm2'.format(value[0] * rate, value[1] * rate, value[2], value[3] * rate1 / 100)
+                cv2.putText(final, str(index) + text, (xx, yy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 0, 0))
+                yy += 25
+
+            cv2.putText(final, 'Paper Size:' + str(ww) + '*' + str(hh), (xx, yy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 0, 0))
+        cv2.imshow('final', final)
+        cv2.imwrite('./finish/' + fn.split('.')[0] + 'xxx.jpg', final)
+        cv2.waitKey()
+        cv2.destroyAllWindows()
