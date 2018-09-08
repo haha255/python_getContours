@@ -6,7 +6,7 @@ import imutils
 
 if __name__ == '__main__':
     sd = shapedetector.ShapeDetector()  # 实例化
-    img = cv2.imread('timg_1.jpg')
+    img = cv2.imread('./pic/timg_1.jpg')
     ret, approx, box = sd.detect(img)
     if not ret:
         print('没有发现矩形！')
