@@ -2,6 +2,7 @@ import cv2
 import shapedetector
 import numpy as np
 import imutils
+import getshellsize
 
 
 def cal_dist(hist):
@@ -14,9 +15,38 @@ def cal_dist(hist):
     return dist
 
 if __name__ == '__main__':
-    sd = shapedetector.ShapeDetector()  # 实例化
-    img = cv2.imread('s5.jpg')
+    sd = getshellsize.GetShellSize()  # 实例化
+    img = cv2.imread('./pic/timg_2.jpg')
     h, w = img.shape[:2]  # 图像的高和宽
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    ii = cv2.pyrMeanShiftFiltering(img, 3, 100)
+    grad = cv2.cvtColor(ii, cv2.COLOR_BGR2GRAY)
+    grad = sd.picGrad(grad, 0.5)
+    canny = cv2.Canny(grad, 50, 150, 3)  # 这里取值不太好
+
+    _, dst = cv2.threshold(grad, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    #dst = cv2.adaptiveThreshold(grad, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 9, 10)
+    #blur = cv2.GaussianBlur(gray, (7, 7), 0)
+    #gray = gray - blur
+    cnts = cv2.findContours(dst, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = cnts[0] if imutils.is_cv2() else cnts[1]
+    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)  # 按照面积由大到小排序
+    for c in cnts:
+        peri = cv2.arcLength(c, True)  # 计算周长
+        approx = cv2.approxPolyDP(c, 0.04 * peri, True)  # 用多边形拟合形状，第二个参数取值一般是1-5%的周长
+        cv2.drawContours(img, [approx], -1, (255, 0, 0), 2)
+        rect = cv2.minAreaRect(c)
+        box = np.int0(cv2.boxPoints(rect))
+        cv2.drawContours(img, [box], -1, (0, 0, 255), 2)
+        print(peri)
+        break
+    img = sd.pic_resize(img, (800, 0))
+    cv2.imshow('grad', canny)
+    cv2.waitKey()
+    exit(0)
+
+
+
     res = np.uint8(np.clip((1.9 * img + 30), 0, 255))
     mask = np.zeros((h + 2, w + 2), dtype=np.uint8)
     cv2.floodFill(res, mask, (1, 1), (0, 0, 0), (3, 3, 3), (3, 3, 3), 4)  # 横向间隔

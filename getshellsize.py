@@ -58,7 +58,8 @@ class GetShellSize:
     def detect_rect(self, img, morphology=4, rectarea=0.3):
         '''检测矩形，按照第三个参数，面积百分比检测，返回3个值，第一个是True/False，第二个值是近似矩形框的mat，第三个值是最小矩形框的mat or None。'''
         h, w = img.shape[:2]  # 图像的高和宽
-        blur = cv2.GaussianBlur(img, (7, 7), 0)  # 高斯虚化
+        # blur = cv2.GaussianBlur(img, (7, 7), 0)  # 高斯虚化
+        blur = cv2.pyrMeanShiftFiltering(img, 3, 50)  #
         ''' 洪水填充，横向取10个种子点，纵向取10个种子点，进行20次填充 '''
         gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
         mask = self._floodmask(gray)  # mask = np.zeros([h + 2, w + 2], np.uint8)  # mask层必须必图片+2)
@@ -71,7 +72,9 @@ class GetShellSize:
         kernel = np.ones((3, 3), np.uint8)  # 运算核
         # kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (5, 5))  # 另一种核
         morph = cv2.morphologyEx(gray, cv2.MORPH_OPEN, kernel, iterations=morphology)  # 开运算，先腐蚀，后膨胀
-        thresh = cv2.threshold(morph, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]  # 二值化, 自动大津值
+        thresh = cv2.adaptiveThreshold(morph, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 13, 10)
+        # thresh = cv2.threshold(morph, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]  # 二值化, 自动大津值
+        thresh = thresh + morph
         cnts = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cnts = cnts[0] if imutils.is_cv2() else cnts[1]
         cnts = sorted(cnts, key=cv2.contourArea, reverse=True)  # 按照面积由大到小排序
@@ -202,18 +205,32 @@ class GetShellSize:
             p_f = (int(p_a[0] - math.cos(radian_90) * dis_f), int(p_a[1] + math.sin(radian_90) * dis_f))
             return p_c, p_d, p_e, p_f
 
+    def pic_resize(self, img, newsize, preserve=1):  # 调整尺寸，第三个参数是是否保持比例，默认保持，若保持时，newsize的第一个参数起作用
+        h, w = img.shape[:2]
+        h1, w1 = newsize
+        if preserve == 1:
+            w1 = int(h1 * w / h)
+        dst = cv2.resize(img, (w1, h1))
+        return dst
+
     def test(self):
         print(self.width, self.height)
 
 if __name__ == '__main__':
     shells = GetShellSize()
-    fn = 'timg_27_g.jpg'
+    fn = 'timg_27.jpg'
     img = cv2.imread('./pic/' + fn)
+    img = shells.pic_resize(img, (1000, 0))
     ret, approx, box = shells.detect_rect(img)
     if not ret:
         print('没有检测到白色垫纸！')
     else:
+        # cv2.drawContours(img, [approx], -1, (255, 0, 0), 2)
+        # cv2.imshow('ff', img)
+        # cv2.waitKey()
+        # exit(0)
         dst = shells.transform(img, approx, box)
+
         sd, final = shells.detect_shell(dst)
         if len(sd) <= 0:
             print('没有检测到扇贝！')
@@ -231,8 +248,9 @@ if __name__ == '__main__':
                 cv2.putText(final, str(index) + text, (xx, yy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 0, 0))
                 yy += 25
 
-            cv2.putText(final, 'Paper Size:' + str(ww) + '*' + str(hh), (xx, yy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 0, 0))
-        cv2.imshow('final', final)
+            cv2.putText(final, 'Paper Size: {0}*{1}'.format(hh, ww), (xx, yy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 0, 0))
+        show = shells.pic_resize(final, (800, 0))
+        cv2.imshow('show', show)
         cv2.imwrite('./finish/' + fn.split('.')[0] + 'xxx.jpg', final)
         cv2.waitKey()
         cv2.destroyAllWindows()
