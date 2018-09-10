@@ -7,6 +7,8 @@ import math
 class GetShellSize:
     def __init__(self, fn=''):
         self.fn = fn
+        self.papersize = (297, 210)  # 纸张大小，毫米单位，宽边（大值）在前。
+        self.rate = 0  # 像素与纸张毫米的比率 毫米数/像素数
         if self.fn != '':
             self.loadPic(self.fn)
 
@@ -116,6 +118,17 @@ class GetShellSize:
         return dst
 
     def detect_shell(self, img, maxnum=8, sim=0.9):
+        h, w = img.shape[:2]
+        tmpmax, tmpmin = self.papersize
+        if tmpmax < tmpmin:
+            tmpmax, tmpmin = tmpmin, tmpmax
+        if h > w:
+            self.rate = tmpmax / h  # 按照最大的边计算像素尺寸比率
+            w = int(tmpmin / self.rate)
+        else:
+            self.rate = tmpmax / w
+            h = int(tmpmin / self.rate)  # 计算按照相同的比率，高度的像素值
+        img = self.pic_resize(img, (h, w), preserve=0)
         std_shell = np.load('./std_shell.npy')  # 标准扇贝轮廓
         HSV = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)  # 转为HSV图像格式 HSV[:, :, 1] 得到图像的饱和度灰度图
         thres = cv2.threshold(HSV[:, :, 1], 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]  # 二值化，大津自动阈值
@@ -144,28 +157,28 @@ class GetShellSize:
                 # end = tuple(approx[e][0])
                 far = tuple(approx[f][0])
                 p1.append(approx[f][0])
-                cv2.circle(img, far, 2, (0, 252, 124), -1)  # 缺陷点标注，草地绿
+                # cv2.circle(img, far, 2, (0, 255, 255), -1)  # 缺陷点标注，草地绿
             x, y = int(p1[1][0] - (p1[1][0] - p1[0][0]) / 2), int(p1[1][1] - (p1[1][1] - p1[0][1]) / 2)  # 腰点中点的坐标
-            cv2.circle(img, (x, y), 2, (0, 252, 124), -1)  # 缺陷点的中点，草地绿
+            cv2.circle(img, (x, y), 3, (0, 255, 255), -1)  # 缺陷点的中点，草地绿
             cv2.drawContours(img, [c], -1, (0, 0, 255), 2)  # 绘制轮廓线
             M = cv2.moments(c)  # 计算轮廓的矩，Hu_M = cv2.HuMoments(M)  # 计算7个不变矩
             if M['m00'] < 1000:
                 break  # 面积小于1000个点的抛弃掉
             cx, cy = int(M['m10'] / M['m00']), int(M['m01'] / M['m00'])  # 质心的坐标位置
-            cv2.circle(img, (cx, cy), 2, (255, 0, 0), -1)  # 画质心，纯蓝色
+            cv2.circle(img, (cx, cy), 3, (255, 0, 0), -1)  # 画质心，纯蓝色
             circle = cv2.minEnclosingCircle(c)  # 查找最小外接圆，因为如果是扇贝，圆心和质心差距应该不大，可以忽略，找外接圆的主要目的是确定画直线段的长度
             circle_r = int(circle[1])  # 半径
             line_2p = self.getcrosspoint(c, (cx, cy), (x, y), circle_r, 2)  # 返回A,B,C,D四个点
-            cv2.line(img, line_2p[0], line_2p[1], (0xff, 0x33, 0x99), 1)  # 颜色 浅紫色
-            cv2.circle(img, line_2p[0], 2, (0xff, 0x33, 0x99), -1)  # 2个端点
-            cv2.circle(img, line_2p[1], 2, (0xff, 0x33, 0x99), -1)
-            cv2.line(img, line_2p[2], line_2p[3], (0xff, 0x33, 0xcc), 1)
-            cv2.circle(img, line_2p[2], 2, (0xff, 0x33, 0x99), -1)  # 2个端点
-            cv2.circle(img, line_2p[3], 2, (0xff, 0x33, 0x99), -1)
+            cv2.line(img, line_2p[0], line_2p[1], (0, 255, 255), 2)  # 颜色 浅紫色
+            cv2.circle(img, line_2p[0], 4, (255, 255, 0), -1)  # 2个端点
+            cv2.circle(img, line_2p[1], 4, (255, 255, 0), -1)
+            cv2.line(img, line_2p[2], line_2p[3], (200, 200, 0), 2)
+            cv2.circle(img, line_2p[2], 4, (0, 255, 255), -1)  # 2个端点
+            cv2.circle(img, line_2p[3], 4, (0, 255, 255), -1)
             shell_h, shell_w = self.linelength(line_2p[0], line_2p[1]), self.linelength(line_2p[2], line_2p[3])
-            txt = 'H:' + str(shell_h) + 'W:' + str(shell_w)
-            cv2.putText(img, txt, (cx, cy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255, 0))
-            cv2.putText(img, 'S:{:.1%}'.format(similar), (cx, cy + 20), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255, 0))
+            cv2.putText(img, 'No:{0}'.format(len(count) + 1), (cx, cy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255, 255))
+            cv2.putText(img, 'H:{0:.1f}W:{1:.1f}'.format(shell_h * self.rate, shell_w * self.rate), (cx, cy + 20), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255, 255))
+            cv2.putText(img, 'S:{:.1%}'.format(similar), (cx, cy + 40), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255, 255))
             count.append([shell_h, shell_w, similar, M['m00']])  # 检测到这里，可以认为找到了扇贝，计数器可以加一了
             if len(count) >= maxnum:
                 break
@@ -218,37 +231,25 @@ class GetShellSize:
 
 if __name__ == '__main__':
     shells = GetShellSize()
-    fn = 'timg_27.jpg'
+    fn = 'timg_32.jpg'
     img = cv2.imread('./pic/' + fn)
-    img = shells.pic_resize(img, (1000, 0))
+    img = shells.pic_resize(img, (1200, 400))
     ret, approx, box = shells.detect_rect(img)
     if not ret:
         print('没有检测到白色垫纸！')
     else:
-        # cv2.drawContours(img, [approx], -1, (255, 0, 0), 2)
-        # cv2.imshow('ff', img)
-        # cv2.waitKey()
-        # exit(0)
         dst = shells.transform(img, approx, box)
-
         sd, final = shells.detect_shell(dst)
         if len(sd) <= 0:
             print('没有检测到扇贝！')
             exit(0)
         else:
             xx, yy = 10, 20
-            hh, ww = final.shape[:2]
-            if hh > ww:
-                rate = 297 / hh * 0.5 + 210 / ww * 0.5
-            else:
-                rate = 297 / ww * 0.5 + 210 / hh * 0.5
-            rate1 = 297 * 210 / (hh * ww)
             for index, value in enumerate(sd):
-                text = ': H={0:.1f}mm, W={1:.1f}mm, S={2:.1%}, Area={3:.1f}cm2'.format(value[0] * rate, value[1] * rate, value[2], value[3] * rate1 / 100)
-                cv2.putText(final, str(index) + text, (xx, yy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 0, 0))
+                text = 'No:{0}: Height={1:.1f}mm, Width={2:.1f}mm, Similar={3:.1%}, Area={4:.1f}cm2'.format(index + 1, value[0] * shells.rate, value[1] * shells.rate, value[2], value[3] * shells.rate**2 / 100)
+                cv2.putText(final, text, (xx, yy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 0, 0))
                 yy += 25
-
-            cv2.putText(final, 'Paper Size: {0}*{1}'.format(hh, ww), (xx, yy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 0, 0))
+            # cv2.putText(final, 'Paper Size: {0}*{1}'.format(hh, ww), (xx, yy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 0, 0))
         show = shells.pic_resize(final, (800, 0))
         cv2.imshow('show', show)
         cv2.imwrite('./finish/' + fn.split('.')[0] + 'xxx.jpg', final)
