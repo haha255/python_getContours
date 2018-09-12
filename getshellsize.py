@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import imutils
 import math
+import os
 
 
 class GetShellSize:
@@ -14,10 +15,16 @@ class GetShellSize:
 
     def loadPic(self, fn):
         self.fn = fn
-        self.image = cv2.imread(self.fn)  # 直接处理，我们对原始照片不感兴趣，更希望得到A4纸张部分，因此直接处理并覆盖
+        img = cv2.imread(self.fn)
+        return img
+        '''self.image = cv2.imread(self.fn)  # 直接处理，我们对原始照片不感兴趣，更希望得到A4纸张部分，因此直接处理并覆盖
         self.height, self.width = self.image.shape[:2]  # 图片的宽和高
         self.gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
-        self.floodmask = self._floodmask(self.gray)  #取洪水填充的Mask
+        self.floodmask = self._floodmask(self.gray)  #取洪水填充的Mask'''
+
+    def setpapersize(self, papersize=(297, 210)):
+        '''设置纸张大小，尺寸大的数字放在第一个。'''
+        self.papersize = papersize
 
     def picGrad(self, img, horizontal=0.5):  # horizontal取值0-1之间，计算x轴和y轴的权重
         X = cv2.Sobel(img, cv2.CV_16S, 1, 0)  # X方向上的梯度计算
@@ -129,7 +136,7 @@ class GetShellSize:
             self.rate = tmpmax / w
             h = int(tmpmin / self.rate)  # 计算按照相同的比率，高度的像素值
         img = self.pic_resize(img, (h, w), preserve=0)
-        std_shell = np.load('./std_shell.npy')  # 标准扇贝轮廓
+        std_shell = np.load(os.path.join(os.path.dirname(__file__), 'std_shell.npy'))  # 标准扇贝轮廓
         HSV = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)  # 转为HSV图像格式 HSV[:, :, 1] 得到图像的饱和度灰度图
         thres = cv2.threshold(HSV[:, :, 1], 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]  # 二值化，大津自动阈值
         kernel = np.ones((3, 3), np.uint8)  # 运算核
@@ -175,11 +182,11 @@ class GetShellSize:
             cv2.line(img, line_2p[2], line_2p[3], (200, 200, 0), 2)
             cv2.circle(img, line_2p[2], 4, (0, 255, 255), -1)  # 2个端点
             cv2.circle(img, line_2p[3], 4, (0, 255, 255), -1)
-            shell_h, shell_w = self.linelength(line_2p[0], line_2p[1]), self.linelength(line_2p[2], line_2p[3])
+            shell_h, shell_w = self.linelength(line_2p[0], line_2p[1]) * self.rate, self.linelength(line_2p[2], line_2p[3]) * self.rate
             cv2.putText(img, 'No:{0}'.format(len(count) + 1), (cx, cy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255, 255))
-            cv2.putText(img, 'H:{0:.1f}W:{1:.1f}'.format(shell_h * self.rate, shell_w * self.rate), (cx, cy + 20), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255, 255))
+            cv2.putText(img, 'H:{0:.1f}W:{1:.1f}'.format(shell_h, shell_w), (cx, cy + 20), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255, 255))
             cv2.putText(img, 'S:{:.1%}'.format(similar), (cx, cy + 40), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255, 255))
-            count.append([shell_h, shell_w, similar, M['m00']])  # 检测到这里，可以认为找到了扇贝，计数器可以加一了
+            count.append([shell_h, shell_w, similar, M['m00']/100 * self.rate**2])  # 检测到这里，可以认为找到了扇贝，计数器可以加一了
             if len(count) >= maxnum:
                 break
         return count, img
@@ -231,7 +238,7 @@ class GetShellSize:
 
 if __name__ == '__main__':
     shells = GetShellSize()
-    fn = 'timg_32.jpg'
+    fn = 'timg_26.jpg'
     img = cv2.imread('./pic/' + fn)
     img = shells.pic_resize(img, (1200, 400))
     ret, approx, box = shells.detect_rect(img)
@@ -246,7 +253,7 @@ if __name__ == '__main__':
         else:
             xx, yy = 10, 20
             for index, value in enumerate(sd):
-                text = 'No:{0}: Height={1:.1f}mm, Width={2:.1f}mm, Similar={3:.1%}, Area={4:.1f}cm2'.format(index + 1, value[0] * shells.rate, value[1] * shells.rate, value[2], value[3] * shells.rate**2 / 100)
+                text = 'No:{0}: Height={1:.1f}mm, Width={2:.1f}mm, Similar={3:.1%}, Area={4:.1f}cm2'.format(index + 1, value[0], value[1], value[2], value[3])
                 cv2.putText(final, text, (xx, yy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 0, 0))
                 yy += 25
             # cv2.putText(final, 'Paper Size: {0}*{1}'.format(hh, ww), (xx, yy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 0, 0))
