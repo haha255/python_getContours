@@ -226,11 +226,12 @@ class GetShellSize:
             p_f = (int(p_a[0] - math.cos(radian_90) * dis_f), int(p_a[1] + math.sin(radian_90) * dis_f))
             return p_c, p_d, p_e, p_f
 
-    def pic_resize(self, img, newsize, preserve=1):  # 调整尺寸，第三个参数是是否保持比例，默认保持，若保持时，newsize的第一个参数起作用
+    def pic_resize(self, img, newsize, preserve=1):  # 调整尺寸，第三个参数是是否保持比例，默认保持，若保持时，newsize的第二个值起作用
         h, w = img.shape[:2]
         h1, w1 = newsize
         if preserve == 1:
-            w1 = int(h1 * w / h)
+            #w1 = int(h1 * w / h)
+            h1 = int(w1 * h /w)
         dst = cv2.resize(img, (w1, h1))
         return dst
 
@@ -244,6 +245,9 @@ class GetShellSize:
         M[1, 2] += (nH / 2) - cY
         return cv2.warpAffine(img, M, (nW, nH))
 
+    def save_pic(self, img, path):
+        cv2.imwrite(path, img)
+
     def rotate_90(self, img):  # 旋转90度
         return np.rot90(img).copy()
 
@@ -255,14 +259,14 @@ class GetShellSize:
             else:
                 return -2, None, None
         h, w = img.shape[:2]  # 图像尺寸
-        if h > 1000:
-            img = self.pic_resize(img, (1000, 0))  # 最大边的值
+        if w > 1000:
+            img = self.pic_resize(img, (0, 1000))  # 最大边的值
             h, w = img.shape[:2]
         ret, approx, box = self.detect_rect(img)
         if not ret:
             if h > w:
                 img = self.rotate_90(img)
-            img = self.pic_resize(img, (maxwidth, 0))
+            img = self.pic_resize(img, (0, maxwidth))
             h, w = img.shape[:2]
             cv2.putText(img, 'No A4 Paper Detected!', (w // 2, h // 2), cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 255))
             return -1, img, None  # 没有检测到白纸，直接返回完全未识别
@@ -274,13 +278,13 @@ class GetShellSize:
                 h, w = dst.shape[:2]  # 如果是竖着的，改成横向
             sd, final = self.detect_shell(dst)  # 检测扇贝
             if len(sd) <= 0:
-                dst = self.pic_resize(dst, (maxwidth, 0))  # 进行图片缩放
+                dst = self.pic_resize(dst, (0, maxwidth))  # 进行图片缩放
                 h, w = dst.shape[:2]
-                cv2.putText(dst, 'No Fan shell Detected!', (w // 2, h // 2), cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 255))
+                cv2.putText(dst, 'No Scallop Detected!', (w // 2, h // 2), cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 255))
                 return 0, dst, None  # 没有检测到扇贝，返回修正后的白纸照片
             else:
                 rate = 297 / w * 0.5 + 210 / h * 0.5
-                final = self.pic_resize(final, (maxwidth, 0))
+                final = self.pic_resize(final, (0, maxwidth))
                 # sd = np.array(sd)
                 # sd[:, [0, 1]] = sd[:, [0, 1]] * rate  # 前2列高和宽
                 # sd[:, 3] = sd[:, 3] * rate ** 2 / 100  # 面积
