@@ -74,10 +74,10 @@ class GetShellSize:
         gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
         mask = self._floodmask(gray)  # mask = np.zeros([h + 2, w + 2], np.uint8)  # mask层必须必图片+2)
         for i in range(10):
-            cv2.floodFill(blur, mask, (int(w / 10) * i + 1, 1), (0, 0, 0), (5, 5, 5), (5, 5, 5), 8)  # 横向间隔
-            cv2.floodFill(blur, mask, (int(w / 10) * i + 1, h - 1), (0, 0, 0), (5, 5, 5), (5, 5, 5), 8)  # 横向间隔
-            cv2.floodFill(blur, mask, (1, int(h / 10) * i + 1), (0, 0, 0), (5, 5, 5), (5, 5, 5), 8)  # 纵向间隔
-            cv2.floodFill(blur, mask, (w - 1, int(h / 10) * i + 1), (0, 0, 0), (5, 5, 5), (5, 5, 5), 8)  # 纵向间隔
+            cv2.floodFill(blur, mask, (int(w / 10) * i + 1, 1), (0, 0, 0), (3, 3, 3), (3, 3, 3), 8)  # 横向间隔
+            cv2.floodFill(blur, mask, (int(w / 10) * i + 1, h - 1), (0, 0, 0), (3, 3, 3), (3, 3, 3), 8)  # 横向间隔
+            cv2.floodFill(blur, mask, (1, int(h / 10) * i + 1), (0, 0, 0), (3, 3, 3), (3, 3, 3), 8)  # 纵向间隔
+            cv2.floodFill(blur, mask, (w - 1, int(h / 10) * i + 1), (0, 0, 0), (3, 3, 3), (3, 3, 3), 8)  # 纵向间隔
         gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
         kernel = np.ones((3, 3), np.uint8)  # 运算核
         # kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (5, 5))  # 另一种核
@@ -125,7 +125,7 @@ class GetShellSize:
         dst = cv2.warpPerspective(img, M, (dis_ab, dis_ad))  # 透视变换
         return dst
 
-    def detect_shell(self, img, maxnum=8, sim=0.9):
+    def detect_shell(self, img, maxnum=10, sim=0.8):
         h, w = img.shape[:2]
         tmpmax, tmpmin = self.papersize
         if tmpmax < tmpmin:
@@ -185,7 +185,7 @@ class GetShellSize:
             cv2.circle(img, line_2p[3], 4, (0, 255, 255), -1)
             shell_h, shell_w = self.linelength(line_2p[0], line_2p[1]) * self.rate, self.linelength(line_2p[2], line_2p[3]) * self.rate
             cv2.putText(img, 'No:{0}'.format(len(count) + 1), (cx, cy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255, 255))
-            cv2.putText(img, 'H:{0:.1f}W:{1:.1f}'.format(shell_h, shell_w), (cx, cy + 20), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255, 255))
+            cv2.putText(img, 'H:{0:.1f}L:{1:.1f}'.format(shell_h, shell_w), (cx, cy + 20), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255, 255))
             cv2.putText(img, 'S:{:.1%}'.format(similar), (cx, cy + 40), cv2.FONT_HERSHEY_DUPLEX, 0.6, (0, 255, 255))
             count.append([shell_h, shell_w, similar, M['m00']/100 * self.rate**2])  # 检测到这里，可以认为找到了扇贝，计数器可以加一了
             if len(count) >= maxnum:
@@ -291,7 +291,7 @@ class GetShellSize:
                 if drawtxt == 1:
                     xx, yy = 10, 20
                     for index, value in enumerate(sd):
-                        text = ': H={0:.1f}mm, W={1:.1f}mm, S={2:.1%}, Area={3:.1f}cm2'.format(value[0], value[1],
+                        text = ': H={0:.1f}mm, L={1:.1f}mm, S={2:.1%}, Area={3:.1f}cm2'.format(value[0], value[1],
                                                                                                value[2], value[3])
                         cv2.putText(final, str(index + 1) + text, (xx, yy), cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 0, 0))
                         yy += 25
@@ -305,7 +305,7 @@ if __name__ == '__main__':
     # fn = 'timg_33.jpg'
     # img = cv2.imread('./pic/' + fn)
     # ret, show, sd = shells.auto_detect(img)
-    shells = GetShellSize('./pic/timg_26.jpg')
+    shells = GetShellSize('./pic/timg_34.jpg')
     _, show, _ = shells.auto_detect()
     cv2.imshow('show', show)
     cv2.waitKey()
